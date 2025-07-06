@@ -31,4 +31,18 @@ ensure the JSON file is properly sent, as the current implementation is working 
 curl -X POST http://localhost:8080/data -d @data/decp-2025.json
 ```
 
+### Pour lancer via les tests:
+
+# Utilisation par défaut (100 requêtes)
+
+.\test_json_sending_loop.ps1
+
+# Spécifier le nombre de requêtes
+
+.\test_json_sending_loop.ps1 -NumberOfRequests 500
+
+# Spécifier tous les paramètres
+
+.\test_json_sending_loop.ps1 -NumberOfRequests 1000 -ParallelRequests 20 -DelayBetweenBatches 0.5
+
 This command correctly reads the content of the JSON file and sends it to the server.
