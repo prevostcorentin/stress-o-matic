@@ -57,13 +57,8 @@ var (
 )
 
 func main() {
-	setupMetricsCollection()
+	//go metricsCollector()
 	setupHTTPServer()
-}
-
-func setupMetricsCollection() {
-	go metricsCollector()
-	go cpuBurner()
 }
 
 func setupHTTPServer() {
@@ -87,7 +82,9 @@ func handlePostData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Printf("Lenght Data : %d\n", len(body))
 	storeData(body)
+	go processLocalDataCopy()
 	sendSuccessResponse(w)
 }
 
@@ -100,6 +97,7 @@ func storeData(body []byte) {
 		Data: string(body),
 		Time: time.Now(),
 	})
+	fmt.Printf("Lenght de Datastore : %d\n", len(dataStore))
 }
 
 func handleGetMetrics(w http.ResponseWriter, r *http.Request) {

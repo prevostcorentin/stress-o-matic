@@ -28,8 +28,6 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 # Set working directory
 WORKDIR $GOPATH
 
-
-
 # Copy source and data
 COPY ../main.go .
 COPY ../data/decp-2025.json .

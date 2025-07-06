@@ -1,7 +1,7 @@
 # Paramètres du script
 param(
-    [int]$NumberOfRequests = 10000, # Nombre total de requêtes (par défaut 100)
-    [int]$ParallelRequests = 500, # Nombre de requêtes simultanées (par défaut 10)
+    [int]$NumberOfRequests = 100, # Nombre total de requêtes (par défaut 100)
+    [int]$ParallelRequests = 10, # Nombre de requêtes simultanées (par défaut 10)
     [int]$BatchSize = 100, # Taille des lots pour éviter la saturation
     [int]$DelayBetweenBatches = 1, # Délai en secondes entre les lots (par défaut 1)
     [string]$JsonFile = "data\decp-2025.json", # Chemin vers le fichier JSON (relatif à la racine du projet)
@@ -133,10 +133,10 @@ $startTime = Get-Date
 $successCount = 0
 $errorCount = 0
 
-# Récupérer les métriques initiales
-Write-Host "Récupération des métriques initiales..." -ForegroundColor Cyan
-$initialMetrics = Get-ServerMetrics -MetricsUrl $MetricsUrl
-Show-Metrics -MetricsData $initialMetrics -Title "MÉTRIQUES INITIALES DU SERVEUR"
+## Récupérer les métriques initiales
+#Write-Host "Récupération des métriques initiales..." -ForegroundColor Cyan
+#$initialMetrics = Get-ServerMetrics -MetricsUrl $MetricsUrl
+#Show-Metrics -MetricsData $initialMetrics -Title "MÉTRIQUES INITIALES DU SERVEUR"
 
 # Boucle principale pour envoyer les requêtes par lots
 for ($i = 0; $i -lt $NumberOfRequests; $i += $ParallelRequests) {
