@@ -134,9 +134,9 @@ $successCount = 0
 $errorCount = 0
 
 ## Récupérer les métriques initiales
-#Write-Host "Récupération des métriques initiales..." -ForegroundColor Cyan
-#$initialMetrics = Get-ServerMetrics -MetricsUrl $MetricsUrl
-#Show-Metrics -MetricsData $initialMetrics -Title "MÉTRIQUES INITIALES DU SERVEUR"
+Write-Host "Récupération des métriques initiales..." -ForegroundColor Cyan
+$initialMetrics = Get-ServerMetrics -MetricsUrl $MetricsUrl
+Show-Metrics -MetricsData $initialMetrics -Title "MÉTRIQUES INITIALES DU SERVEUR"
 
 # Boucle principale pour envoyer les requêtes par lots
 for ($i = 0; $i -lt $NumberOfRequests; $i += $ParallelRequests) {
