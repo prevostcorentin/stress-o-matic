@@ -1,0 +1,49 @@
+# Build stage
+FROM ubuntu:latest AS builder
+
+# Define build arguments with default values
+ARG GO_VERSION=1.21.4
+ARG ENVIRONMENT=development
+
+# Set environment variables
+ENV GO_VERSION=${GO_VERSION} \
+    ENVIRONMENT=${ENVIRONMENT}
+
+# Installer les dépendances de construction
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    git \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN wget --no-check-certificate -P /tmp "https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz"
+
+RUN tar -C /usr/local -xzf "/tmp/go${GO_VERSION}.linux-amd64.tar.gz"
+RUN rm "/tmp/go${GO_VERSION}.linux-amd64.tar.gz"
+
+ENV GOPATH=/app
+ENV PATH=$GOPATH/bin:/usr/local/go/bin:$PATH
+RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
+
+# Set working directory
+WORKDIR $GOPATH
+
+# Copy source and data
+COPY ../main.go .
+COPY ../data/decp-2025.json .
+
+# Build a static binary with no cgo
+RUN CGO_ENABLED=0 GOOS=linux go build -o stress-o-matic main.go
+
+# Final stage - minimal image
+FROM scratch
+
+# Copy the binary and data
+COPY --from=builder /app/stress-o-matic /stress-o-matic
+COPY --from=builder /app/decp-2025.json /decp-2025.json
+
+# Expose the port used by the app
+EXPOSE 8080
+
+# Run the binary
+ENTRYPOINT ["/stress-o-matic"]
