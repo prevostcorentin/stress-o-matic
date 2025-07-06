@@ -4,7 +4,7 @@ FROM golang:1.21-alpine AS builder
 WORKDIR /app
 
 # Copy source
-COPY main.go .
+COPY ../main.go .
 
 # Build a static binary with no cgo
 RUN CGO_ENABLED=0 GOOS=linux go build -o stress-o-matic main.go
