@@ -1,16 +1,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -54,19 +58,71 @@ var (
 
 	metrics   []MetricSample
 	metricsMu sync.Mutex
+
+	// Pour la gestion des goroutines actives
+	activeWorkers sync.WaitGroup
+	ctx           context.Context
+	cancel        context.CancelFunc
 )
 
 func main() {
-	//go metricsCollector()
-	setupHTTPServer()
+	// Création du contexte avec annulation
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	// Démarrage du collecteur de métriques dans une goroutine
+	activeWorkers.Add(1)
+	go func() {
+		defer activeWorkers.Done()
+		metricsCollector(ctx)
+	}()
+
+	// Configuration et démarrage du serveur HTTP
+	server := setupHTTPServer()
+
+	// Configuration de la gestion des signaux
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	// Attente d'un signal d'interruption
+	<-stop
+	log.Println("Arrêt du serveur en cours...")
+
+	// Annulation du contexte pour arrêter les goroutines en cours
+	cancel()
+
+	// Arrêt gracieux du serveur HTTP
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Erreur lors de l'arrêt du serveur: %v", err)
+	}
+
+	// Attente que toutes les goroutines se terminent
+	activeWorkers.Wait()
+	log.Println("Serveur arrêté avec succès")
 }
 
-func setupHTTPServer() {
-	http.HandleFunc("/data", handlePostData)
-	http.HandleFunc("/metrics", handleGetMetrics)
+func setupHTTPServer() *http.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/data", handlePostData)
+	mux.HandleFunc("/metrics", handleGetMetrics)
 
-	log.Println("API listening on :" + defaultPort)
-	log.Fatal(http.ListenAndServe(":"+defaultPort, nil))
+	server := &http.Server{
+		Addr:    ":" + defaultPort,
+		Handler: mux,
+	}
+
+	// Démarrage du serveur dans une goroutine
+	go func() {
+		log.Println("API listening on :" + defaultPort)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Erreur du serveur: %v", err)
+		}
+	}()
+
+	return server
 }
 
 // Gestionnaires HTTP
@@ -84,7 +140,21 @@ func handlePostData(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Lenght Data : %d\n", len(body))
 	storeData(body)
-	go processLocalDataCopy()
+
+	// Vérifier si le contexte est déjà annulé
+	if ctx.Err() != nil {
+		log.Println("Serveur en cours d'arrêt, n'exécute pas de nouvelles tâches")
+		sendSuccessResponse(w)
+		return
+	}
+
+	// Lancer le CPU burner avec suivi des goroutines actives
+	activeWorkers.Add(1)
+	go func() {
+		defer activeWorkers.Done()
+		cpuBurner(ctx)
+	}()
+
 	sendSuccessResponse(w)
 }
 
@@ -106,6 +176,9 @@ func handleGetMetrics(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid timestamps", http.StatusBadRequest)
 		return
 	}
+
+	// Collect metrics when /metrics is called
+	updateMetrics()
 
 	metricsMu.Lock()
 	defer metricsMu.Unlock()
@@ -172,11 +245,19 @@ func generateMetricsResponse(metrics []MetricSample, tr timeRange) string {
 }
 
 // Collecte des métriques
-func metricsCollector() {
+func metricsCollector(ctx context.Context) {
+	ticker := time.NewTicker(metricCollectionInterval)
+	defer ticker.Stop()
+
 	for {
-		updateMetrics()
-		cleanupOldMetrics()
-		time.Sleep(metricCollectionInterval)
+		select {
+		case <-ctx.Done():
+			log.Println("Arrêt du collecteur de métriques")
+			return
+		case <-ticker.C:
+			updateMetrics()
+			cleanupOldMetrics()
+		}
 	}
 }
 
@@ -185,6 +266,9 @@ func updateMetrics() {
 	metricsMu.Lock()
 	metrics = append(metrics, sample)
 	metricsMu.Unlock()
+
+	// Clean up old metrics after updating
+	cleanupOldMetrics()
 }
 
 func cleanupOldMetrics() {
@@ -209,9 +293,18 @@ func collectMetrics() MetricSample {
 }
 
 // Simulation CPU et utilitaires
-func cpuBurner() {
-	for {
-		processLocalDataCopy()
+func cpuBurner(ctx context.Context) {
+	// Run the CPU burner for a limited time to avoid resource exhaustion
+	// This simulates high CPU load when /data is called
+	for i := 0; i < 10; i++ {
+		// Vérifier si le contexte a été annulé
+		select {
+		case <-ctx.Done():
+			log.Println("Arrêt du CPU burner suite à l'annulation du contexte")
+			return
+		default:
+			processLocalDataCopy()
+		}
 	}
 }
 

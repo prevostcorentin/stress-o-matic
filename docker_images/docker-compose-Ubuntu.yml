@@ -12,5 +12,6 @@ services:
       resources:
         limits:
           memory: 20G
+          cpus: 1
     env_file:
       - ../.env
